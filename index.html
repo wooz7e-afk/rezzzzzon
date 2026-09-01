@@ -599,10 +599,7 @@ img.imgload.loaded{ opacity:1; }
    тексты перед запуском в продакшн — структура полей менять
    не нужно, весь остальной код на неё уже опирается. */
 
-/* ЗАПАСНЫЕ ДАННЫЕ: используются только если Directus недоступен (сервер лёг,
-   нет интернета и т.п.), чтобы мини-апп не показывал пустой экран.
-   Актуальный контент теперь редактируется в Directus, а не здесь. */
-const REZONANS_FALLBACK = {
+const REZONANS_DATA = {
   stats: { travelers: '1200+', countries: '18+', reach: '2.4M+' },
 
   guides: [
@@ -813,93 +810,6 @@ const REZONANS_FALLBACK = {
   ]
 };
 
-/* ================= DIRECTUS: загрузка контента ================= */
-// TODO: вписать сюда адрес вашего Directus после установки, например:
-// const DIRECTUS_URL = 'https://cms.rezonans-travel.ru';
-const DIRECTUS_URL = 'https://cms.rezonanstravel.ru';
-
-let REZONANS_DATA = REZONANS_FALLBACK; // пока не загрузили — показываем запасные данные
-
-function mediaUrl(fileId){
-  if(!fileId) return '';
-  if(typeof fileId === 'string' && /^https?:\/\//.test(fileId)) return fileId;
-  return `${DIRECTUS_URL}/assets/${fileId}`;
-}
-async function dGet(collection, query=''){
-  const res = await fetch(`${DIRECTUS_URL}/items/${collection}${query}`);
-  if(!res.ok) throw new Error('Directus: не удалось получить ' + collection);
-  const json = await res.json();
-  return json.data || [];
-}
-function groupBy(arr, key){
-  return arr.reduce((acc, item) => { (acc[item[key]] = acc[item[key]] || []).push(item); return acc; }, {});
-}
-
-/* Забирает 6 коллекций из Directus и собирает их в ту же структуру,
-   в которой раньше был зашит REZONANS_DATA — благодаря этому весь остальной
-   код приложения (screens, рендеры) не пришлось переписывать. Вложенные
-   списки (места, маршруты, программа, faq и т.д.) хранятся в Directus прямо
-   внутри карточки как поля-списки — сотрудник добавляет строки кнопкой
-   "+ добавить", без единой строчки JSON. */
-async function loadRezonansData(){
-  const [statsRows, guidesRaw, toursRaw, people, events] = await Promise.all([
-    dGet('stats'),
-    dGet('guides', '?sort=sort'),
-    dGet('tours', '?sort=sort'),
-    dGet('people'),
-    dGet('events')
-  ]);
-
-  const guides = guidesRaw.map(g => {
-    const routes = {};
-    (g.routes || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(r => {
-      if(!routes[r.duration]) routes[r.duration] = [];
-      routes[r.duration].push({ title: r.title });
-    });
-    const safety = { scams: [], overpay: [], avoid: [], watch: [] };
-    (g.safety || []).forEach(s => { if(safety[s.category]) safety[s.category].push(s.text); });
-    return {
-      id: g.id, title: g.title, shortDesc: g.short_desc, cover: mediaUrl(g.cover),
-      updated: g.updated, timezone: g.timezone, currency: g.currency, lang: g.lang, bestTime: g.best_time,
-      about: g.about,
-      places: (g.places || []).map(p => ({ img: mediaUrl(p.img), name: p.name, type: p.type })),
-      routes,
-      importantInfo: g.important_info || [],
-      safety,
-      people: g.people || [],
-      bonuses: g.bonuses || []
-    };
-  });
-
-  const tours = toursRaw.map(t => ({
-    id: t.id, dest: t.dest, label: t.label, cover: mediaUrl(t.cover), idea: t.idea,
-    dates: t.dates, days: t.days, people: t.people_range, priceFrom: t.price_from,
-    route: t.route || [],
-    program: t.program || [],
-    stay: t.stay,
-    activities: t.activities || [],
-    team: t.team, localPerson: t.local_person,
-    included: t.included || [],
-    excluded: t.excluded || [],
-    safety: t.safety,
-    faq: t.faq || []
-  }));
-
-  const stats = statsRows || {};
-  REZONANS_DATA = {
-    stats: { travelers: stats.travelers || '', countries: stats.countries || '', reach: stats.reach || '' },
-    guides, tours,
-    people: people.map(p => ({
-      id: p.id, name: p.name, role: p.role, city: p.city, country: p.country,
-      category: p.category, img: mediaUrl(p.img), why: p.why, does: p.does
-    })),
-    events: events.map(e => ({
-      id: e.id, title: e.title, when: e.when, day: e.day, month: e.month, where: e.where,
-      desc: e.desc, organizer: e.organizer, spots: e.spots, price: e.price, tourId: e.tour || undefined
-    }))
-  };
-}
-
 /* ---------- data getters (used everywhere in the app) ---------- */
 function getGuide(id){ return REZONANS_DATA.guides.find(g => g.id === id); }
 function getTour(id){ return REZONANS_DATA.tours.find(t => t.id === id); }
@@ -1007,29 +917,13 @@ function haptic(style){
   }
 }
 function sendToBot(payload){
-  // Заявка сохраняется напрямую в Directus (коллекция leads), с keepalive —
-  // чтобы запрос гарантированно доходил, даже если пользователь тут же
-  // закроет мини-апп сам.
-  // ВАЖНО: раньше здесь также вызывался tg.sendData(...) — но именно этот
-  // вызов, по правилам Telegram, автоматически ЗАКРЫВАЕТ мини-апп сразу
-  // после отправки, из-за чего пользователь не видел экран подтверждения
-  // "Заявка отправлена" (showResultSheet). Убрано намеренно.
-  fetch(`${DIRECTUS_URL}/items/leads`, {
-    method: 'POST',
-    keepalive: true,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: payload.type || '',
-      name: payload.name || '',
-      contact: payload.contact || '',
-      people_count: payload.people || null,
-      comment: payload.comment || payload.mustSee || '',
-      ref_id: payload.refId || '',
-      ref_label: payload.refLabel || payload.destination || '',
-      raw_payload: payload
-    })
-  }).catch(e => console.warn('Не удалось отправить заявку в Directus', e));
-  return true;
+  // В проде: бот на сервере получает это через Telegram.WebApp.sendData
+  // и создаёт заявку в CRM/админке (см. раздел 15 ТЗ). Здесь — с фолбэком
+  // для демо-режима вне Telegram.
+  if(tg && tg.sendData){
+    try{ tg.sendData(JSON.stringify(payload)); return true; }catch(e){ console.warn(e); }
+  }
+  return false;
 }
 
 /* ---------- ANALYTICS (раздел 14 ТЗ) ----------
@@ -2184,16 +2078,10 @@ function animateCountUp(el){
 }
 
 /* ---------- overlay backdrop click ---------- */
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   initTelegram();
   applyTheme(STATE.theme);
   track('mini_app_open', { source: document.referrer || 'direct' });
-  try{
-    await loadRezonansData();
-  }catch(e){
-    console.warn('Не удалось загрузить контент из Directus, показываю запасные данные', e);
-    REZONANS_DATA = REZONANS_FALLBACK;
-  }
   go('home');
   const splash = document.getElementById('splash');
   if(splash){
