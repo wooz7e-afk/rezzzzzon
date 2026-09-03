@@ -179,23 +179,22 @@ body::after{
 .back-row .title{ font-family:var(--font-display); font-weight:700; font-size:17px; }
 
 /* ============ SCREENS ============ */
-.screen{ display:none; flex:1; padding-bottom: calc(84px + var(--safe-bottom)); animation: fadein .42s cubic-bezier(.16,1,.3,1); }
+.screen{ display:none; flex:1; padding-bottom: calc(84px + var(--safe-bottom)); }
 .screen.active{ display:block; }
-/* When document.startViewTransition is used (see SUPPORTS_VIEW_TRANSITIONS in
-   the script), the browser already cross-fades the old/new screen natively —
-   skip this keyframe then, or the two transitions stack and the screen
-   visibly double-flashes on every navigation. */
-.screen.vt-active{ animation:none; }
-@keyframes fadein{ from{ opacity:0; transform:translateY(14px) scale(.99);} to{opacity:1; transform:translateY(0) scale(1);} }
-/* browsers with View Transitions API get a native cross-fade too (progressive enhancement) */
-::view-transition-old(root){ animation: vt-out .32s cubic-bezier(.4,0,1,1) both; }
-::view-transition-new(root){ animation: vt-in .38s cubic-bezier(.16,1,.3,1) both; }
-@keyframes vt-out{ to{ opacity:0; transform:translateY(-8px); } }
-@keyframes vt-in{ from{ opacity:0; transform:translateY(10px); } }
+/* Screen switches render instantly with no fade/cross-fade animation.
+   Previously this used a CSS fadein keyframe AND the native View
+   Transitions API at the same time — both playing together made the old
+   and new screen overlap for a frame, which showed up as doubled/
+   "blinking" text on every navigation. Both are intentionally removed;
+   do not reintroduce a transition/animation here. */
 
-/* reveal-on-scroll utility */
-.reveal{ opacity:0; transform:translateY(18px); transition:opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1); }
-.reveal.in{ opacity:1; transform:translateY(0); }
+/* reveal-on-scroll utility — disabled (see afterRender()). Elements used
+   to start hidden and fade in on every screen render, which produced the
+   same blink/flash effect even for content already on screen. Cards now
+   render at full opacity immediately; the class/rule is kept only so
+   existing markup and JS references don't break. */
+.reveal{ opacity:1; transform:none; }
+.reveal.in{ opacity:1; transform:none; }
 
 .section{ padding: 22px 18px 6px; }
 .section-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
@@ -264,6 +263,29 @@ body::after{
    since a snap-back on release is what previously read as "circular". */
 .hscroll{ display:flex; gap:12px; overflow-x:auto; padding: 0 18px 6px; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
 .hscroll::-webkit-scrollbar{ display:none; }
+/* ---- guides moved into the Telegram chat/bot: promo block shown wherever
+   the guide catalog used to render ---- */
+.guides-in-chat{
+  position:relative; overflow:hidden;
+  padding:22px 20px; border-radius:var(--radius-l);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(214,242,76,0.10), transparent 55%),
+    linear-gradient(135deg, rgba(193,96,47,0.18), rgba(62,92,116,0.18));
+  border:1px solid var(--line);
+  display:flex; flex-direction:column; align-items:flex-start; gap:10px;
+}
+.guides-in-chat .gic-icon{
+  width:42px; height:42px; border-radius:12px; flex-shrink:0;
+  background:rgba(244,238,226,0.14);
+  display:flex; align-items:center; justify-content:center;
+}
+.guides-in-chat .gic-icon svg{ width:20px; height:20px; stroke:var(--lime); }
+.guides-in-chat .gic-title{ font-family:var(--font-display); font-weight:700; font-size:16px; line-height:1.3; }
+.guides-in-chat .gic-text{ font-size:12.5px; color:var(--text-soft); line-height:1.6; }
+.guides-in-chat .btn{ margin-top:4px; }
+.guides-in-chat.compact{ padding:18px; gap:8px; }
+.guides-in-chat.compact .gic-title{ font-size:14.5px; }
+.guides-in-chat.compact .gic-text{ font-size:12px; }
 
 .gcard{ position:relative; flex:0 0 152px; height:196px; border-radius: var(--radius-m); overflow:hidden; scroll-snap-align:start; transition: transform .35s cubic-bezier(.16,1,.3,1); cursor:pointer; }
 .gcard img{ width:100%; height:100%; object-fit:cover; transition: transform .5s cubic-bezier(.16,1,.3,1); background:var(--ink-3); }
@@ -584,7 +606,7 @@ img.imgload.loaded{ opacity:1; }
 Каждый — в отдельный HTML-блок (T123 / "Другое" → HTML-код) на одной странице.
 Этот блок был утерян в исходнике (гайды/туры/люди/события не грузились, приложение падало
 с ошибкой 'REZONANS_DATA is not defined' на главном экране) — восстановлен ниже.
-Замените картинки-заглушки (picsum.photos) и тексты на реальные перед запуском.
+Фото уже настоящие (Wikimedia Commons); тексты по-прежнему черновые — замените на свои перед запуском.
 ========================================================== -->
 
 <script>
@@ -592,28 +614,35 @@ img.imgload.loaded{ opacity:1; }
    REZONANS_DATA — весь контент приложения: гайды, туры,
    люди, мероприятия, статистика.
 
-   ВАЖНО: это демонстрационные данные-заглушки (placeholder).
-   Фото — с picsum.photos (стабильный бесплатный сервис,
-   доступен из любой страны, без ключей API), тексты — черновые.
-   Замените cover/img на ссылки на реальные фото и перепишите
-   тексты перед запуском в продакшн — структура полей менять
-   не нужно, весь остальной код на неё уже опирается. */
+   ВАЖНО: тексты по-прежнему черновые демонстрационные, но
+   фото (cover/img) теперь настоящие — реальные локации из
+   каждого гайда, подобраны через Wikimedia Commons
+   (Special:FilePath — официальный способ хотлинка файлов
+   Commons, ?width=N отдаёт превью нужного размера). Портреты
+   людей — с randomuser.me, сервиса, специально созданного для
+   демо-аватаров. Когда появится собственный фотобанк REZONANS
+   (или Directus начнёт отдавать медиа), замените ссылки на
+   свои — структура полей менять не нужно, весь остальной код
+   на неё уже опирается. */
 
-const REZONANS_DATA = {
+/* ЗАПАСНЫЕ ДАННЫЕ: используются только если Directus недоступен (сервер лёг,
+   нет интернета и т.п.), чтобы мини-апп не показывал пустой экран.
+   Актуальный контент теперь редактируется в Directus, а не здесь. */
+const REZONANS_FALLBACK = {
   stats: { travelers: '1200+', countries: '18+', reach: '2.4M+' },
 
   guides: [
     {
       id: 'georgia', title: 'Грузия', shortDesc: 'Горы, вино, гостеприимство',
-      cover: 'https://picsum.photos/seed/rezonans-georgia/900/700',
+      cover: 'https://commons.wikimedia.org/wiki/Special:FilePath/Old_Town_and_Narikala%2C_Tbilisi.jpg?width=900',
       updated: 'Обновлено в 2025', timezone: 'GMT+4', currency: 'GEL (лари)', lang: 'Грузинский, русский',
       bestTime: 'Май–октябрь — лучшее время для гор и вина',
       about: 'Грузия — страна, где горы соседствуют с виноградниками, а гостеприимство важнее любого маршрута. Собрали места и людей, проверенные командой REZONANS лично.',
       places: [
-        { img: 'https://picsum.photos/seed/rezonans-tbilisi/300/300', name: 'Старый Тбилиси', type: 'Город' },
-        { img: 'https://picsum.photos/seed/rezonans-kazbegi', name: 'Казбеги', type: 'Горы' },
-        { img: 'https://picsum.photos/seed/rezonans-svaneti', name: 'Сванетия', type: 'Горы' },
-        { img: 'https://picsum.photos/seed/rezonans-kakheti', name: 'Кахетия', type: 'Вино' }
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/BW11_-_Cityscape_of_Old_Tbilisi.jpg?width=400', name: 'Старый Тбилиси', type: 'Город' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Kazbegi%2C_Gergeti_Trinity_Church_and_Mt_Kazbek_%2835959311351%29.jpg?width=400', name: 'Казбеги', type: 'Горы' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Mestia%2C_June%2C_2018-2.jpg?width=400', name: 'Сванетия', type: 'Горы' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sighnaghi%2C_Kakheti%2C_Georgia.jpg?width=400', name: 'Кахетия', type: 'Вино' }
       ],
       routes: {
         '3 дня': [{ title: 'Тбилиси и окрестности' }, { title: 'Кахетия, дегустация вина' }, { title: 'Мцхета, древняя столица' }],
@@ -636,14 +665,14 @@ const REZONANS_DATA = {
     },
     {
       id: 'turkey', title: 'Турция', shortDesc: 'От Стамбула до побережья',
-      cover: 'https://picsum.photos/seed/rezonans-turkey/900/700',
+      cover: 'https://commons.wikimedia.org/wiki/Special:FilePath/Istanbul_City_skyline_at_Sunset.jpg?width=900',
       updated: 'Обновлено в 2025', timezone: 'GMT+3', currency: 'TRY (лира)', lang: 'Турецкий, английский',
       bestTime: 'Апрель–июнь и сентябрь–октябрь — комфортная жара',
       about: 'Турция — это не только пляжи. Стамбул, Каппадокия, Ликийская тропа и десятки мест, которые редко попадают в стандартные туры.',
       places: [
-        { img: 'https://picsum.photos/seed/rezonans-istanbul/300/300', name: 'Стамбул', type: 'Город' },
-        { img: 'https://picsum.photos/seed/rezonans-antalya', name: 'Анталия', type: 'Побережье' },
-        { img: 'https://picsum.photos/seed/rezonans-pamukkale', name: 'Памуккале', type: 'Природа' }
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Bosphorus_Istanbul_2007.jpg?width=400', name: 'Стамбул', type: 'Город' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Antalya._View_from_Karaalioglu_Park_to_the_sea.jpg?width=400', name: 'Анталия', type: 'Побережье' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Pamukkale_Travertines.jpg?width=400', name: 'Памуккале', type: 'Природа' }
       ],
       routes: {
         '3 дня': [{ title: 'Стамбул: исторический центр' }, { title: 'Босфор и азиатская сторона' }, { title: 'Рынки и набережная' }],
@@ -666,14 +695,14 @@ const REZONANS_DATA = {
     },
     {
       id: 'cappadocia', title: 'Каппадокия', shortDesc: 'Воздушные шары и пещерные города',
-      cover: 'https://picsum.photos/seed/rezonans-cappadocia/900/700',
+      cover: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cappadocia_Chimneys_Wikimedia_Commons.jpg?width=900',
       updated: 'Обновлено в 2025', timezone: 'GMT+3', currency: 'TRY (лира)', lang: 'Турецкий, английский',
       bestTime: 'Апрель–июнь, сентябрь–ноябрь — мягкий климат и ясное небо',
       about: 'Лунные пейзажи, подземные города и рассвет с сотней воздушных шаров в небе — Каппадокия стоит отдельного гайда.',
       places: [
-        { img: 'https://picsum.photos/seed/rezonans-goreme/300/300', name: 'Гёреме', type: 'Долина' },
-        { img: 'https://picsum.photos/seed/rezonans-derinkuyu', name: 'Деринкую', type: 'Подземный город' },
-        { img: 'https://picsum.photos/seed/rezonans-uchisar', name: 'Учхисар', type: 'Крепость' }
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Hot_air_balloons_in_Cappadocia.jpg?width=400', name: 'Гёреме', type: 'Долина' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Derinkuyu_Underground_City.JPG?width=400', name: 'Деринкую', type: 'Подземный город' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Castle_U%C3%A7hisar_in_Cappadocia.jpg?width=400', name: 'Учхисар', type: 'Крепость' }
       ],
       routes: {
         '3 дня': [{ title: 'Гёреме и музей под открытым небом' }, { title: 'Красная и Розовая долины' }, { title: 'Подземный город Деринкую' }],
@@ -696,14 +725,14 @@ const REZONANS_DATA = {
     },
     {
       id: 'capetown', title: 'Кейптаун', shortDesc: 'Океан, горы и вино на краю Африки',
-      cover: 'https://picsum.photos/seed/rezonans-capetown/900/700',
+      cover: 'https://commons.wikimedia.org/wiki/Special:FilePath/CT_-_Table_Mountain_and_Cape_Town_cityscape%2C_South_Africa%2C_2017.jpg?width=900',
       updated: 'Обновлено в 2025', timezone: 'GMT+2', currency: 'ZAR (ранд)', lang: 'Английский, африкаанс',
       bestTime: 'Ноябрь–март — лето в южном полушарии',
       about: 'Кейптаун — там, где Столовая гора встречает два океана. Винодельни, сафари в паре часов езды и одна из самых красивых набережных мира.',
       places: [
-        { img: 'https://picsum.photos/seed/rezonans-tablemountain/300/300', name: 'Столовая гора', type: 'Природа' },
-        { img: 'https://picsum.photos/seed/rezonans-stellenbosch', name: 'Стелленбос', type: 'Вино' },
-        { img: 'https://picsum.photos/seed/rezonans-capepoint', name: 'Мыс Доброй Надежды', type: 'Природа' }
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cape_Town_Table_Mountain.jpg?width=400', name: 'Столовая гора', type: 'Природа' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/20190202_Vineyards_in_Stellenbosch.jpg?width=400', name: 'Стелленбос', type: 'Вино' },
+        { img: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cape_of_Good_Hope_%28Zaian_2008%29.JPG?width=400', name: 'Мыс Доброй Надежды', type: 'Природа' }
       ],
       routes: {
         '3 дня': [{ title: 'Столовая гора и City Bowl' }, { title: 'Мыс Доброй Надежды' }, { title: 'Винодельни Стелленбоса' }],
@@ -729,7 +758,7 @@ const REZONANS_DATA = {
   tours: [
     {
       id: 'georgia-autumn', dest: 'Грузия', label: 'Осенний тур',
-      cover: 'https://picsum.photos/seed/rezonans-tour-georgia/900/700',
+      cover: 'https://commons.wikimedia.org/wiki/Special:FilePath/Kazbegi%2C_Gergeti_Trinity_Church_and_Mt_Kazbek_%2835959311351%29.jpg?width=900',
       idea: 'Горы, вино нового урожая и грузинское застолье — за 8 дней',
       dates: '12–19 октября', days: 8, people: '6–10 человек', priceFrom: '$980',
       route: ['Тбилиси', 'Кахетия', 'Казбеги', 'Сванетия'],
@@ -756,7 +785,7 @@ const REZONANS_DATA = {
     },
     {
       id: 'cappadocia-balloons', dest: 'Каппадокия', label: 'Короткий тур',
-      cover: 'https://picsum.photos/seed/rezonans-tour-cappadocia/900/700',
+      cover: 'https://commons.wikimedia.org/wiki/Special:FilePath/Hot_Air_Ballon_over_Cappadocia_11.jpg?width=900',
       idea: 'Рассвет с воздушными шарами и лунные долины за 4 дня',
       dates: '3–6 мая', days: 4, people: '4–8 человек', priceFrom: '$650',
       route: ['Гёреме', 'Красная долина', 'Деринкую', 'Учхисар'],
@@ -782,19 +811,19 @@ const REZONANS_DATA = {
 
   people: [
     { id: 'giorgi-guide', name: 'Георгий', role: 'Локальный гид', city: 'Тбилиси', country: 'Грузия', category: 'guides',
-      img: 'https://picsum.photos/seed/rezonans-giorgi/200/200',
+      img: 'https://randomuser.me/api/portraits/men/32.jpg',
       why: 'Водит малыми группами по горам больше 8 лет, лично проверен командой REZONANS.',
       does: 'Организует треккинги, винные туры и трансферы по всей Грузии. Говорит по-русски и по-английски.' },
     { id: 'nino-transfer', name: 'Нино', role: 'Трансферы', city: 'Тбилиси', country: 'Грузия', category: 'transfers',
-      img: 'https://picsum.photos/seed/rezonans-nino/200/200',
+      img: 'https://randomuser.me/api/portraits/women/44.jpg',
       why: 'Надёжный трансфер по всей стране, включая горные дороги зимой.',
       does: 'Встречает в аэропорту, возит между городами, подскажет лучшие смотровые по пути.' },
     { id: 'ahmet-guide', name: 'Ахмет', role: 'Локальный гид', city: 'Гёреме', country: 'Турция', category: 'guides',
-      img: 'https://picsum.photos/seed/rezonans-ahmet/200/200',
+      img: 'https://randomuser.me/api/portraits/men/54.jpg',
       why: 'Организует полёты на шаре и треккинги по долинам Каппадокии с 2016 года.',
       does: 'Подберёт лучшего оператора для полёта, проведёт по местам, куда не водят стандартные туры.' },
     { id: 'thandi-organizer', name: 'Тэнди', role: 'Организатор туров', city: 'Кейптаун', country: 'ЮАР', category: 'organizers',
-      img: 'https://picsum.photos/seed/rezonans-thandi/200/200',
+      img: 'https://randomuser.me/api/portraits/women/68.jpg',
       why: 'Организует поездки по Западному Кейпу и сафари больше 10 лет.',
       does: 'Собирает маршруты под интересы группы: вино, природа, сафари, побережье.' }
   ],
@@ -809,6 +838,93 @@ const REZONANS_DATA = {
       tourId: 'cappadocia-balloons' }
   ]
 };
+
+/* ================= DIRECTUS: загрузка контента ================= */
+// TODO: вписать сюда адрес вашего Directus после установки, например:
+// const DIRECTUS_URL = 'https://cms.rezonans-travel.ru';
+const DIRECTUS_URL = 'https://cms.rezonanstravel.ru';
+
+let REZONANS_DATA = REZONANS_FALLBACK; // пока не загрузили — показываем запасные данные
+
+function mediaUrl(fileId){
+  if(!fileId) return '';
+  if(typeof fileId === 'string' && /^https?:\/\//.test(fileId)) return fileId;
+  return `${DIRECTUS_URL}/assets/${fileId}`;
+}
+async function dGet(collection, query=''){
+  const res = await fetch(`${DIRECTUS_URL}/items/${collection}${query}`);
+  if(!res.ok) throw new Error('Directus: не удалось получить ' + collection);
+  const json = await res.json();
+  return json.data || [];
+}
+function groupBy(arr, key){
+  return arr.reduce((acc, item) => { (acc[item[key]] = acc[item[key]] || []).push(item); return acc; }, {});
+}
+
+/* Забирает 6 коллекций из Directus и собирает их в ту же структуру,
+   в которой раньше был зашит REZONANS_DATA — благодаря этому весь остальной
+   код приложения (screens, рендеры) не пришлось переписывать. Вложенные
+   списки (места, маршруты, программа, faq и т.д.) хранятся в Directus прямо
+   внутри карточки как поля-списки — сотрудник добавляет строки кнопкой
+   "+ добавить", без единой строчки JSON. */
+async function loadRezonansData(){
+  const [statsRows, guidesRaw, toursRaw, people, events] = await Promise.all([
+    dGet('stats'),
+    dGet('guides', '?sort=sort'),
+    dGet('tours', '?sort=sort'),
+    dGet('people'),
+    dGet('events')
+  ]);
+
+  const guides = guidesRaw.map(g => {
+    const routes = {};
+    (g.routes || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(r => {
+      if(!routes[r.duration]) routes[r.duration] = [];
+      routes[r.duration].push({ title: r.title });
+    });
+    const safety = { scams: [], overpay: [], avoid: [], watch: [] };
+    (g.safety || []).forEach(s => { if(safety[s.category]) safety[s.category].push(s.text); });
+    return {
+      id: g.id, title: g.title, shortDesc: g.short_desc, cover: mediaUrl(g.cover),
+      updated: g.updated, timezone: g.timezone, currency: g.currency, lang: g.lang, bestTime: g.best_time,
+      about: g.about,
+      places: (g.places || []).map(p => ({ img: mediaUrl(p.img), name: p.name, type: p.type })),
+      routes,
+      importantInfo: g.important_info || [],
+      safety,
+      people: g.people || [],
+      bonuses: g.bonuses || []
+    };
+  });
+
+  const tours = toursRaw.map(t => ({
+    id: t.id, dest: t.dest, label: t.label, cover: mediaUrl(t.cover), idea: t.idea,
+    dates: t.dates, days: t.days, people: t.people_range, priceFrom: t.price_from,
+    route: t.route || [],
+    program: t.program || [],
+    stay: t.stay,
+    activities: t.activities || [],
+    team: t.team, localPerson: t.local_person,
+    included: t.included || [],
+    excluded: t.excluded || [],
+    safety: t.safety,
+    faq: t.faq || []
+  }));
+
+  const stats = statsRows || {};
+  REZONANS_DATA = {
+    stats: { travelers: stats.travelers || '', countries: stats.countries || '', reach: stats.reach || '' },
+    guides, tours,
+    people: people.map(p => ({
+      id: p.id, name: p.name, role: p.role, city: p.city, country: p.country,
+      category: p.category, img: mediaUrl(p.img), why: p.why, does: p.does
+    })),
+    events: events.map(e => ({
+      id: e.id, title: e.title, when: e.when, day: e.day, month: e.month, where: e.where,
+      desc: e.desc, organizer: e.organizer, spots: e.spots, price: e.price, tourId: e.tour || undefined
+    }))
+  };
+}
 
 /* ---------- data getters (used everywhere in the app) ---------- */
 function getGuide(id){ return REZONANS_DATA.guides.find(g => g.id === id); }
@@ -867,15 +983,6 @@ const ICONS = {
 function ic(name, cls){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls||''}">${ICONS[name]||''}</svg>`; }
 
 /* ---------- STATE ---------- */
-// When the browser supports the native View Transitions API, go() wraps
-// render() in document.startViewTransition, which already cross-fades the
-// old/new screen snapshots on its own. If the CSS ".screen" fadein keyframe
-// (below) also plays at the same time, both animations run at once and the
-// new screen visibly "double-flashes" over the fading-out snapshot. render()
-// tags the fresh screen with 'vt-active' whenever native transitions are
-// used so the CSS keyframe is skipped and only one animation ever plays;
-// browsers without support keep the original CSS-only fallback untouched.
-const SUPPORTS_VIEW_TRANSITIONS = typeof document.startViewTransition === 'function';
 const STATE = {
   screen: 'home',
   params: {},
@@ -917,13 +1024,29 @@ function haptic(style){
   }
 }
 function sendToBot(payload){
-  // В проде: бот на сервере получает это через Telegram.WebApp.sendData
-  // и создаёт заявку в CRM/админке (см. раздел 15 ТЗ). Здесь — с фолбэком
-  // для демо-режима вне Telegram.
-  if(tg && tg.sendData){
-    try{ tg.sendData(JSON.stringify(payload)); return true; }catch(e){ console.warn(e); }
-  }
-  return false;
+  // Заявка сохраняется напрямую в Directus (коллекция leads), с keepalive —
+  // чтобы запрос гарантированно доходил, даже если пользователь тут же
+  // закроет мини-апп сам.
+  // ВАЖНО: раньше здесь также вызывался tg.sendData(...) — но именно этот
+  // вызов, по правилам Telegram, автоматически ЗАКРЫВАЕТ мини-апп сразу
+  // после отправки, из-за чего пользователь не видел экран подтверждения
+  // "Заявка отправлена" (showResultSheet). Убрано намеренно.
+  fetch(`${DIRECTUS_URL}/items/leads`, {
+    method: 'POST',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: payload.type || '',
+      name: payload.name || '',
+      contact: payload.contact || '',
+      people_count: payload.people || null,
+      comment: payload.comment || payload.mustSee || '',
+      ref_id: payload.refId || '',
+      ref_label: payload.refLabel || payload.destination || '',
+      raw_payload: payload
+    })
+  }).catch(e => console.warn('Не удалось отправить заявку в Directus', e));
+  return true;
 }
 
 /* ---------- ANALYTICS (раздел 14 ТЗ) ----------
@@ -987,14 +1110,12 @@ function go(screen, params){
   STATE.screen = screen;
   STATE.params = params || {};
   track('screen_view', { screen, ...STATE.params });
-  // Progressive enhancement: native cross-fade via the View Transitions API
-  // where supported (Chromium-based WebViews, incl. most Telegram clients),
-  // graceful fallback to the CSS keyframe animation everywhere else.
-  if(document.startViewTransition){
-    document.startViewTransition(() => { render(); });
-  } else {
-    render();
-  }
+  // Screens switch instantly, no cross-fade/animation. This used to run
+  // through document.startViewTransition (native cross-fade) while the CSS
+  // also played its own fadein keyframe on the new screen — both firing at
+  // once made the old and new screen briefly overlap, which looked like a
+  // blink/flicker on every navigation. Do not reintroduce either.
+  render();
   // 'instant' forces an immediate jump and overrides the global CSS
   // scroll-behavior:smooth — without it, screen switches would visibly
   // animate-scroll back up to the top instead of snapping there right away.
@@ -1024,7 +1145,7 @@ function render(){
     case 'saved-places': html = screenSavedPlaces(); break;
     default: html = screenHome();
   }
-  root.innerHTML = `<div class="screen active${SUPPORTS_VIEW_TRANSITIONS ? ' vt-active' : ''}">${html}</div>`;
+  root.innerHTML = `<div class="screen active">${html}</div>`;
   afterRender();
 }
 
@@ -1084,7 +1205,7 @@ function screenHome(){
   const s = REZONANS_DATA.stats;
   return `
   <div class="hero">
-    <img class="parallax-img imgload" onload="this.classList.add('loaded')" src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?q=80&w=1200&auto=format&fit=crop" alt="">
+    <img class="parallax-img imgload" onload="this.classList.add('loaded')" src="https://commons.wikimedia.org/wiki/Special:FilePath/Hot_air_balloons_over_Cappadocia_1.jpg?width=1200" alt="">
     <div class="hero-content">
       <div class="hero-eyebrow">Путешествия, которые откликаются</div>
       <div class="hero-title">Туры.<br>Гайды.<br><span class="accent">Свои люди.</span></div>
@@ -1119,11 +1240,13 @@ function screenHome(){
   <div class="section" style="padding-top:12px;">
     <div class="section-head">
       <div class="section-title">Гайды по странам</div>
-      <button class="section-link" onclick="go('guides')">Все ${ic('chevronR')}</button>
     </div>
-  </div>
-  <div class="hscroll">
-    ${REZONANS_DATA.guides.map(g => guideCard(g)).join('')}
+    <div class="guides-in-chat compact reveal">
+      <div class="gic-icon">${ic('send')}</div>
+      <div class="gic-title">Все гайды находятся внутри чата</div>
+      <p class="gic-text">Чтобы гайд работал в офлайн-режиме, мы перенесли их туда, где они всегда под рукой — в чат с REZONANS. Открывайте и сохраняйте в любой точке мира, даже без связи.</p>
+      <button type="button" class="btn btn-sm" onclick="openTelegramLink('https://t.me/REZONANS_TRAVEL')">Открыть чат ${ic('chevronR')}</button>
+    </div>
   </div>
 
   ${(() => { const e = REZONANS_DATA.events[0]; const isTour = !!e.tourId;
@@ -1179,20 +1302,15 @@ function screenGuides(){
   <div class="section">
     <div class="eyebrow">REZONANS Guide</div>
     <div class="section-title" style="margin-bottom:4px;">Проверенные места. Честные люди.</div>
-    <p style="font-size:12.5px; color:var(--text-soft); margin-top:6px; line-height:1.5;">Готовые гайды по странам — не огромный каталог, а места, которые команда REZONANS проверила лично.</p>
+    <p style="font-size:12.5px; color:var(--text-soft); margin-top:6px; line-height:1.5;">Гайды, которые команда REZONANS проверила лично — теперь ещё удобнее держать под рукой.</p>
   </div>
-  <div class="section" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; padding-top:8px;">
-    ${REZONANS_DATA.guides.map(g => `
-      <div class="gcard" role="button" tabindex="0" style="width:100%; height:210px;"
-           onclick="go('guide-detail', {id:'${g.id}'})" onkeydown="if(event.key==='Enter') go('guide-detail', {id:'${g.id}'})">
-        <span class="badge verified">${ic('shield')} Проверено</span>
-        <button type="button" class="save-btn ${isGuideSaved(g.id) ? 'active' : ''}" title="${isGuideSaved(g.id) ? 'Убрать из сохранённых' : 'Сохранить гайд'}" onclick="toggleSaveGuide('${g.id}', event)">${ic('bookmark')}</button>
-        <img src="${g.cover}" alt="${g.title}">
-        <div class="gc-body">
-          <div class="gc-name">${g.title}</div>
-          <div class="gc-meta">${g.shortDesc}</div>
-        </div>
-      </div>`).join('')}
+  <div class="section" style="padding-top:8px;">
+    <div class="guides-in-chat reveal">
+      <div class="gic-icon">${ic('send')}</div>
+      <div class="gic-title">Все гайды находятся внутри чата</div>
+      <p class="gic-text">Чтобы гайд работал в офлайн-режиме, мы перенесли их туда, где они всегда под рукой — в чат с REZONANS. Сохраните нужный гайд один раз, и он останется с вами в дороге, даже без связи и интернета.</p>
+      <button type="button" class="btn btn-sm" onclick="openTelegramLink('https://t.me/REZONANS_TRAVEL')">Перейти в чат ${ic('chevronR')}</button>
+    </div>
   </div>
   `;
 }
@@ -1996,30 +2114,16 @@ render = function(){
 };
 
 /* ---------- misc after-render hooks ---------- */
-let revealObserver = null;
 function afterRender(){
   document.getElementById('overlay').onclick = (e) => { if(e.target.id==='overlay') closeSheet(); };
 
   // images that were already cached won't reliably re-fire onload — flip them in directly
   document.querySelectorAll('img.imgload').forEach(img => { if(img.complete) img.classList.add('loaded'); });
 
-  // reveal-on-scroll: fade/slide cards up as they enter the viewport, staggered
-  if(revealObserver) revealObserver.disconnect();
-  const revealEls = document.querySelectorAll('.reveal');
-  if('IntersectionObserver' in window && revealEls.length){
-    revealObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry, i) => {
-        if(entry.isIntersecting){
-          const el = entry.target;
-          setTimeout(() => el.classList.add('in'), (i % 6) * 55);
-          revealObserver.unobserve(el);
-        }
-      });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    revealEls.forEach(el => revealObserver.observe(el));
-  } else {
-    revealEls.forEach(el => el.classList.add('in'));
-  }
+  // reveal-on-scroll fade/slide-up was removed: it replayed on every screen
+  // render (not just on real scroll-into-view), which made already-visible
+  // cards flash/blink on each navigation. .reveal elements now render at
+  // full opacity immediately — no observer needed.
 
   // count-up stat numbers (49.5K, 1M+, 20+ ...)
   document.querySelectorAll('[data-countup]').forEach(el => animateCountUp(el));
@@ -2078,10 +2182,16 @@ function animateCountUp(el){
 }
 
 /* ---------- overlay backdrop click ---------- */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initTelegram();
   applyTheme(STATE.theme);
   track('mini_app_open', { source: document.referrer || 'direct' });
+  try{
+    await loadRezonansData();
+  }catch(e){
+    console.warn('Не удалось загрузить контент из Directus, показываю запасные данные', e);
+    REZONANS_DATA = REZONANS_FALLBACK;
+  }
   go('home');
   const splash = document.getElementById('splash');
   if(splash){
