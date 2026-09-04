@@ -852,10 +852,23 @@ function mediaUrl(fileId){
   return `${DIRECTUS_URL}/assets/${fileId}`;
 }
 async function dGet(collection, query=''){
-  const res = await fetch(`${DIRECTUS_URL}/items/${collection}${query}`);
-  if(!res.ok) throw new Error('Directus: не удалось получить ' + collection);
-  const json = await res.json();
-  return json.data || [];
+  // AbortController timeout: без него, если Directus не отвечает (сервер
+  // упал, завис, недоступен), fetch будет висеть бесконечно — await
+  // loadRezonansData() в обработчике DOMContentLoaded никогда не
+  // завершится, try/catch не сработает, и заставка останется на экране
+  // навсегда ("вечная заставка"). С тайм-аутом запрос сам оборвётся и
+  // бросит ошибку не позже чем через 6 секунд, что даёт коду упасть в
+  // штатный catch и показать запасные данные.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  try{
+    const res = await fetch(`${DIRECTUS_URL}/items/${collection}${query}`, { signal: controller.signal });
+    if(!res.ok) throw new Error('Directus: не удалось получить ' + collection);
+    const json = await res.json();
+    return json.data || [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 function groupBy(arr, key){
   return arr.reduce((acc, item) => { (acc[item[key]] = acc[item[key]] || []).push(item); return acc; }, {});
@@ -1091,7 +1104,7 @@ function openBonusSheet(){
     <div class="sicon">${ic('gift')}</div>
     <h3 style="margin-bottom:4px;">Бонусная программа</h3>
     <p style="margin-bottom:18px;">Мы готовим бонусы за поездки и приглашённых друзей. Подпишитесь на канал — сообщим, как только программа запустится.</p>
-    <button class="btn btn-block btn-lg" onclick="closeSheet(); openTelegramLink('https://t.me/REZONANS_TRAVEL')">Подписаться на канал</button>
+    <button class="btn btn-block btn-lg" onclick="closeSheet(); openTelegramLink('https://t.me/rezonans_live')">Подписаться на канал</button>
     <button class="btn btn-block btn-ghost" style="margin-top:10px;" onclick="closeSheet()">Понятно</button>
   `;
   document.getElementById('overlay').classList.add('active');
@@ -1245,7 +1258,7 @@ function screenHome(){
       <div class="gic-icon">${ic('send')}</div>
       <div class="gic-title">Все гайды находятся внутри чата</div>
       <p class="gic-text">Чтобы гайд работал в офлайн-режиме, мы перенесли их туда, где они всегда под рукой — в чат с REZONANS. Открывайте и сохраняйте в любой точке мира, даже без связи.</p>
-      <button type="button" class="btn btn-sm" onclick="openTelegramLink('https://t.me/REZONANS_TRAVEL')">Открыть чат ${ic('chevronR')}</button>
+      <button type="button" class="btn btn-sm" onclick="openTelegramLink('https://t.me/rezonancbot')">Открыть чат ${ic('chevronR')}</button>
     </div>
   </div>
 
@@ -1309,7 +1322,7 @@ function screenGuides(){
       <div class="gic-icon">${ic('send')}</div>
       <div class="gic-title">Все гайды находятся внутри чата</div>
       <p class="gic-text">Чтобы гайд работал в офлайн-режиме, мы перенесли их туда, где они всегда под рукой — в чат с REZONANS. Сохраните нужный гайд один раз, и он останется с вами в дороге, даже без связи и интернета.</p>
-      <button type="button" class="btn btn-sm" onclick="openTelegramLink('https://t.me/REZONANS_TRAVEL')">Перейти в чат ${ic('chevronR')}</button>
+      <button type="button" class="btn btn-sm" onclick="openTelegramLink('https://t.me/rezonans_live')">Перейти в чат ${ic('chevronR')}</button>
     </div>
   </div>
   `;
@@ -1858,7 +1871,7 @@ function screenCommunity(){
   <div class="comm-hero">
     <h2>Присоединяйся к REZONANS</h2>
     <p>Путешествия · Люди · Отклик. Канал с анонсами, чат сообщества и живые встречи по всему миру.</p>
-    <button class="btn" style="background:var(--ink); color:var(--cream);" onclick="openTelegramLink('https://t.me/REZONANS_TRAVEL')">Открыть канал ${ic('chevronR')}</button>
+    <button class="btn" style="background:var(--ink); color:var(--cream);" onclick="openTelegramLink('https://t.me/REZONANS_LIVE')">Открыть канал ${ic('chevronR')}</button>
   </div>
   <div class="comm-links">
     <div class="comm-link reveal" role="button" tabindex="0" onclick="openTelegramLink('https://t.me/REZONANS_TRAVEL')" onkeydown="if(event.key==='Enter') openTelegramLink('https://t.me/REZONANS_TRAVEL')">
@@ -2186,6 +2199,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTelegram();
   applyTheme(STATE.theme);
   track('mini_app_open', { source: document.referrer || 'direct' });
+
+  const splash = document.getElementById('splash');
+  // Аварийный предохранитель: что бы ни случилось выше (даже баг, из-за
+  // которого загрузка данных зависнет в обход try/catch), заставка
+  // гарантированно скроется не позже чем через 8 секунд — "вечной
+  // заставки" больше не может быть в принципе, независимо от причины.
+  const splashFailSafe = setTimeout(() => { if(splash) splash.classList.add('hide'); }, 8000);
+
   try{
     await loadRezonansData();
   }catch(e){
@@ -2193,7 +2214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     REZONANS_DATA = REZONANS_FALLBACK;
   }
   go('home');
-  const splash = document.getElementById('splash');
+  clearTimeout(splashFailSafe);
   if(splash){
     setTimeout(() => splash.classList.add('hide'), 600);
   }
